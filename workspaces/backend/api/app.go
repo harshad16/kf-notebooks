@@ -62,7 +62,7 @@ const (
 
 	// swagger
 	SwaggerPath    = PathPrefix + "/swagger/*any"
-	SwaggerDocPath = PathPrefix + "/swagger/doc.json"
+	SwaggerDocPath = "./doc.json"
 )
 
 type App struct {

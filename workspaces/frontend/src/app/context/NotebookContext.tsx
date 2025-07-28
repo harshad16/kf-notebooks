@@ -1,5 +1,4 @@
 import React, { ReactNode, useMemo } from 'react';
-import { BFF_API_VERSION } from '~/app/const';
 import EnsureAPIAvailability from '~/app/EnsureAPIAvailability';
 import useNotebookAPIState, { NotebookAPIState } from './useNotebookAPIState';
 
@@ -19,7 +18,7 @@ interface NotebookContextProviderProps {
 }
 
 export const NotebookContextProvider: React.FC<NotebookContextProviderProps> = ({ children }) => {
-  const hostPath = `/api/${BFF_API_VERSION}`;
+  const hostPath = `/notebooks/api`;
 
   const [apiState, refreshAPIState] = useNotebookAPIState(hostPath);
 

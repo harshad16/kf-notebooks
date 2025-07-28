@@ -1,4 +1,3 @@
-import { BFF_API_VERSION } from '~/app/const';
 import { restGET, wrapRequest } from '~/shared/api/apiUtils';
 import { listNamespaces } from '~/shared/api/notebookService';
 
@@ -20,11 +19,11 @@ const APIOptionsMock = {};
 
 describe('getNamespaces', () => {
   it('should call restGET and handleRestFailures to fetch namespaces', async () => {
-    const response = await listNamespaces(`/api/${BFF_API_VERSION}/namespaces`)(APIOptionsMock);
+    const response = await listNamespaces(`/api`)(APIOptionsMock);
     expect(response).toEqual(mockRestResponse);
     expect(restGETMock).toHaveBeenCalledTimes(1);
     expect(restGETMock).toHaveBeenCalledWith(
-      `/api/${BFF_API_VERSION}/namespaces`,
+      `/api`,
       `/namespaces`,
       {},
       APIOptionsMock,
