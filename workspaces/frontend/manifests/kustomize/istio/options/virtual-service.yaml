@@ -10,11 +10,21 @@ spec:
   http:
     - match:
         - uri:
-            prefix: /workspaces
+            exact: /notebooks
       rewrite:
         uri: "/"
       route:
         - destination:
-            host: nb-frontend.workspace-controller-system.svc.cluster.local
+            host: nb-frontend.kubeflow-system.svc.cluster.local
+            port:
+              number: 8080
+    - match:
+        - uri:
+            regex: /notebooks/(?!api/).*
+      rewrite:
+        uri: "/"
+      route:
+        - destination:
+            host: nb-frontend.kubeflow-system.svc.cluster.local
             port:
               number: 8080

@@ -5,17 +5,19 @@ namespace: kubeflow-system
 namePrefix: nb-
 
 resources:
-  - service_account.yaml
-  - rbac.yaml
-  - service.yaml
-  - deployment.yaml
+- service_account.yaml
+- rbac.yaml
+- service.yaml
+- deployment.yaml
 
 images:
-  - name: nb-backend
+- name: nb-backend
+  newName: quay.io/harshad16/nbcv2
+  newTag: backend-latest
 
 labels:
 - includeSelectors: true
   pairs:
-    app.kubernetes.io/name: kubeflow-notebooks
     app.kubernetes.io/component: backend
     app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: kubeflow-notebooks

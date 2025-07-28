@@ -4,13 +4,15 @@ metadata:
   name: backend
 spec:
   gateways:
-  - kubeflow-gateway
+  - kubeflow/kubeflow-gateway
   hosts:
   - '*'
   http:
   - match:
     - uri:
-        prefix: /workspaces/api/
+        prefix: /notebooks/api/
+    rewrite:
+      uri: /api/v1/
     route:
     - destination:
         host: nb-backend.kubeflow-system.svc.cluster.local

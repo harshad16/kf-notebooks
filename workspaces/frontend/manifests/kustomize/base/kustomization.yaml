@@ -6,15 +6,17 @@ namespace: kubeflow-system
 namePrefix: nb-
 
 resources:
-  - deployment.yaml
-  - service.yaml
+- deployment.yaml
+- service.yaml
 
 images:
-  - name: nb-frontend
+- name: nb-frontend
+  newName: quay.io/harshad16/nbcv2
+  newTag: frontend-latest
 
 labels:
 - includeSelectors: true
   pairs:
-    app.kubernetes.io/name: kubeflow-notebooks
     app.kubernetes.io/component: workspace-frontend
-    app.kubernetes.io/managed-by: kustomize  
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: kubeflow-notebooks

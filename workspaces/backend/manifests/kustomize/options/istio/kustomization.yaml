@@ -5,5 +5,4 @@ namePrefix: nb-
 
 resources:
 - istio-authorization-policy.yaml
-- destination-rule.yaml
 - virtual-service.yaml
