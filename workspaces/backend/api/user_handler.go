@@ -21,6 +21,8 @@ import (
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
+
+	"github.com/kubeflow/notebooks/workspaces/backend/internal/auth"
 )
 
 // UserResponse represents the user settings response
@@ -42,15 +44,31 @@ type UserEnvelope = Envelope[*UserResponse]
 //	@Failure		500	{object}	ErrorEnvelope
 //	@Router			/user [get]
 func (a *App) GetUserHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	// Get user ID from the configured header (set by authentication proxy)
+	userId := a.resolveUserId(r)
+
+	clusterAdmin, err := a.resolveClusterAdmin(r)
+	if err != nil {
+		a.serverErrorResponse(w, r, err)
+		return
+	}
+
+	response := UserEnvelope{
+		Data: &UserResponse{
+			UserId:       userId,
+			ClusterAdmin: clusterAdmin,
+		},
+	}
+
+	a.dataResponse(w, r, &response)
+}
+
+func (a *App) resolveUserId(r *http.Request) string {
 	userId := r.Header.Get(a.Config.UserIdHeader)
 
-	// Remove prefix if configured (e.g., "system:serviceaccount:" prefix)
 	if a.Config.UserIdPrefix != "" {
 		userId = strings.TrimPrefix(userId, a.Config.UserIdPrefix)
 	}
 
-	// Fallback headers for different deployment scenarios
 	if userId == "" {
 		userId = r.Header.Get("X-Auth-Request-User")
 	}
@@ -61,14 +79,21 @@ func (a *App) GetUserHandler(w http.ResponseWriter, r *http.Request, ps httprout
 		userId = "anonymous"
 	}
 
-	// For now, assume cluster admin status - this can be enhanced later
-	// to check actual RBAC permissions
-	response := UserEnvelope{
-		Data: &UserResponse{
-			UserId:       userId,
-			ClusterAdmin: true,
-		},
+	return userId
+}
+
+func (a *App) resolveClusterAdmin(r *http.Request) (bool, error) {
+	if a.Config.DisableAuth {
+		return false, nil
 	}
 
-	a.dataResponse(w, r, &response)
+	res, ok, err := a.RequestAuthN.AuthenticateRequest(r)
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		return false, nil
+	}
+
+	return auth.IsClusterAdmin(r.Context(), a.RequestAuthZ, res.User)
 }
