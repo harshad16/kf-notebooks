@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/go-toolset:1.24@sha256:ca9a20706eb4b27f51dcd8539818b7222e15db71759dd15b908c1f0950e8b4f7 AS builder
+FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/go-toolset:1.24@sha256:6234f572204d672a0ee0686d748fbb9b7b05679368bf0d7a4446e13970e58060 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 
@@ -9,7 +9,8 @@ COPY go.mod go.mod
 COPY go.sum go.sum
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
-RUN go mod download
+RUN if [ -f /cachi2/cachi2.env ]; then source /cachi2/cachi2.env; fi && \
+    go mod download
 
 # Copy the go source
 COPY cmd/main.go cmd/main.go
@@ -22,7 +23,8 @@ USER root
 # was called. For example, if we call make docker-build in a local env which has the Apple Silicon M1 SO
 # the docker BUILDPLATFORM arg will be linux/arm64 when for Apple x86 it will be linux/amd64. Therefore,
 # by leaving it empty we can ensure that the container and binary shipped on it will have the same platform.
-RUN CGO_ENABLED=1 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} GOEXPERIMENT=strictfipsruntime \
+RUN if [ -f /cachi2/cachi2.env ]; then source /cachi2/cachi2.env; fi && \
+    CGO_ENABLED=1 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} GOEXPERIMENT=strictfipsruntime \
     go build -tags strictfipsruntime -a -ldflags="-s -w" -o manager cmd/main.go
 
 FROM registry.access.redhat.com/ubi9-minimal@sha256:692953368d8e630f40a3c0a6135163f8824fdafc26e0400b9a6c8d7fac850366
