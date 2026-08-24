@@ -142,7 +142,7 @@ func (a *App) Routes() http.Handler {
 	mux := http.NewServeMux()
 
 	// API routes - handle /api/v1/* paths
-	mux.Handle(constants.PathPrefix+"/", a.recoverPanic(a.enableCORS(router)))
+	mux.Handle(constants.PathPrefix+"/", router)
 
 	// Static file server for frontend assets (Module Federation support)
 	if a.Config.StaticAssetsDir != "" {
@@ -163,5 +163,5 @@ func (a *App) Routes() http.Handler {
 		})
 	}
 
-	return mux
+	return a.recoverPanic(a.enableCORS(gzhttp.GzipHandler(mux)))
 }
