@@ -19,8 +19,8 @@ package main
 import (
 	"crypto/tls"
 	"flag"
-	"net/url"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -223,7 +223,7 @@ func main() {
 	// This is different from standard Kubernetes which uses pre-created token secrets.
 	var indexerErr error
 	maxRetries := 5
-	for i := 0; i < maxRetries; i++ {
+	for i := range maxRetries {
 		indexerErr = helper.SetupManagerFieldIndexers(mgr, cfg)
 		if indexerErr == nil {
 			break
@@ -356,6 +356,9 @@ func getControllerNamespace(defaultVal string) string {
 			return namespace
 		}
 	}
+
+	return defaultVal
+}
 
 func getEnvAsInt(name string, defaultVal int) int {
 	if value, exists := os.LookupEnv(name); exists {
