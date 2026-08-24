@@ -406,7 +406,7 @@ func (r *WorkspaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// generate StatefulSet
-	statefulSet, err := generateStatefulSet(workspace, workspaceKind, currentImageConfig.Spec, currentPodConfig.Spec, serviceAccountName)
+	statefulSet, err := generateStatefulSet(workspace, workspaceKind, currentImageConfig.Spec, currentPodConfig.Spec, serviceAccountName, r.Config.OpenShift)
 	if err != nil {
 		log.V(0).Info("failed to generate StatefulSet for Workspace", "error", err.Error())
 		return r.updateWorkspaceState(ctx, log, workspace,
@@ -1391,7 +1391,7 @@ func (r *WorkspaceReconciler) reconcileRoleBindings(ctx context.Context, log log
 }
 
 // generateStatefulSet generates a StatefulSet for a Workspace
-func generateStatefulSet(workspace *kubefloworgv1beta1.Workspace, workspaceKind *kubefloworgv1beta1.WorkspaceKind, imageConfigSpec kubefloworgv1beta1.ImageConfigSpec, podConfigSpec kubefloworgv1beta1.PodConfigSpec, serviceAccountName string) (*appsv1.StatefulSet, error) {
+func generateStatefulSet(workspace *kubefloworgv1beta1.Workspace, workspaceKind *kubefloworgv1beta1.WorkspaceKind, imageConfigSpec kubefloworgv1beta1.ImageConfigSpec, podConfigSpec kubefloworgv1beta1.PodConfigSpec, serviceAccountName string, openshift bool) (*appsv1.StatefulSet, error) { //nolint:gocyclo
 	// generate name prefix
 	namePrefix := generateNamePrefix(workspace.Name, maxStatefulSetNameLength)
 
@@ -1601,6 +1601,23 @@ func generateStatefulSet(workspace *kubefloworgv1beta1.Workspace, workspaceKind 
 		seenVolumeMountPaths[extraVolumeMount.MountPath] = true
 	}
 
+	podSecurityContext := workspaceKind.Spec.PodTemplate.SecurityContext
+	if podSecurityContext != nil {
+		podSecurityContext = podSecurityContext.DeepCopy()
+	}
+	containerSecurityContext := workspaceKind.Spec.PodTemplate.ContainerSecurityContext
+	if containerSecurityContext != nil {
+		containerSecurityContext = containerSecurityContext.DeepCopy()
+	}
+	if openshift {
+		helper.AdjustSecurityContextForOpenShift(&podSecurityContext, &containerSecurityContext)
+	}
+
+	var hostUsers *bool
+	if openshift {
+		hostUsers = ptr.To(false)
+	}
+
 	// generate StatefulSet
 	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1634,6 +1651,7 @@ func generateStatefulSet(workspace *kubefloworgv1beta1.Workspace, workspaceKind 
 				},
 				Spec: corev1.PodSpec{
 					Affinity: podConfigSpec.Affinity,
+					HostUsers: hostUsers,
 					Containers: []corev1.Container{
 						{
 							Name:            workspacePodTemplateContainerName,
@@ -1643,14 +1661,14 @@ func generateStatefulSet(workspace *kubefloworgv1beta1.Workspace, workspaceKind 
 							ReadinessProbe:  readinessProbe,
 							LivenessProbe:   livenessProbe,
 							StartupProbe:    startupProbe,
-							SecurityContext: workspaceKind.Spec.PodTemplate.ContainerSecurityContext,
+							SecurityContext: containerSecurityContext,
 							VolumeMounts:    volumeMounts,
 							Env:             containerEnv,
 							Resources:       containerResources,
 						},
 					},
 					NodeSelector:       podConfigSpec.NodeSelector,
-					SecurityContext:    workspaceKind.Spec.PodTemplate.SecurityContext,
+					SecurityContext:    podSecurityContext,
 					ServiceAccountName: serviceAccountName,
 					Tolerations:        podConfigSpec.Tolerations,
 					Volumes:            volumes,

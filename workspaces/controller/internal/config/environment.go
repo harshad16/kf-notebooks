@@ -26,4 +26,8 @@ type EnvConfig struct {
 	KubeGatewayNamespace string
 	ControllerNamespace  string
 	KubeRbacProxyImage   string
+	// OpenShift is true when running on an OpenShift cluster. Workspace pod security
+	// contexts are adjusted to comply with restricted SCCs (omit pinned UIDs, set
+	// seccompProfile and hostUsers).
+	OpenShift bool
 }

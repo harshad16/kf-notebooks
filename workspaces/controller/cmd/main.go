@@ -133,6 +133,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	restConfig := ctrl.GetConfigOrDie()
+	cfg.OpenShift = config.ResolveOpenShift(restConfig)
+
 	// Log configuration values for debugging
 	setupLog.Info("Configuration loaded",
 		"UseIstio", cfg.UseIstio,
@@ -143,7 +146,8 @@ func main() {
 		"ClusterDomain", cfg.ClusterDomain,
 		"IstioGateway", cfg.IstioGateway,
 		"IstioHosts", cfg.IstioHosts,
-		"KubeRbacProxyImage", sanitizeImageReference(cfg.KubeRbacProxyImage))
+		"KubeRbacProxyImage", sanitizeImageReference(cfg.KubeRbacProxyImage),
+		"OpenShift", cfg.OpenShift)
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
@@ -168,7 +172,6 @@ func main() {
 
 	// build the REST config and a clientset for the activity probe pod-exec subresource
 	// (the controller-runtime cached client cannot perform exec, so we use a raw clientset)
-	restConfig := ctrl.GetConfigOrDie()
 	clientset, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		setupLog.Error(err, "unable to create Kubernetes clientset")
