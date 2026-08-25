@@ -69,6 +69,8 @@
     - rbac.authorization.k8s.io
     resources:
     - clusterroles
+    resourceNames:
+    - system:auth-delegator
     verbs:
     - bind
 # ReferenceGrant permissions for cross-namespace HTTPRoute backend references
