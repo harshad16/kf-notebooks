@@ -22,6 +22,7 @@ import (
 	"os"
 	"strconv"
 
+	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	application "github.com/kubeflow/notebooks/workspaces/backend/api"
@@ -46,6 +47,10 @@ import (
 //	@schemes	http https
 //	@consumes	application/json
 //	@produces	application/json
+
+// NOTE: the security definition for the user id header is not declared here, but injected at
+//       runtime by the Swagger UI handler (see `api/swagger_handler.go`), because the name of
+//       the header is configurable with the `--userid-header` flag.
 
 func main() {
 	// Define command line flags
@@ -159,6 +164,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	clientset, err := kubernetes.NewForConfig(kubeconfig)
+	if err != nil {
+		logger.Error("failed to create Kubernetes clientset", "error", err)
+		os.Exit(1)
+	}
+
 	// Create the request authenticator
 	reqAuthN, err := auth.NewRequestAuthenticator(cfg.UserIdHeader, cfg.UserIdPrefix, cfg.GroupsHeader)
 	if err != nil {
@@ -190,6 +201,7 @@ func main() {
 		mgr.GetScheme(),
 		reqAuthN,
 		reqAuthZ,
+		clientset,
 	)
 	if err != nil {
 		logger.Error("failed to create app", "error", err)

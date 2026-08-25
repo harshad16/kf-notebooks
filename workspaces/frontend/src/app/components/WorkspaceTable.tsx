@@ -6,10 +6,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import {
-  TimestampTooltipVariant,
-  Timestamp,
-} from '@patternfly/react-core/dist/esm/components/Timestamp';
+import { Timestamp } from '@patternfly/react-core/dist/esm/components/Timestamp';
 import { Label } from '@patternfly/react-core/dist/esm/components/Label';
 import {
   PaginationVariant,
@@ -31,6 +28,7 @@ import {
   Td,
   ThProps,
   ActionsColumn,
+  IAction,
   IActions,
 } from '@patternfly/react-table/dist/esm/components/Table';
 import { formatDistanceToNow } from 'date-fns/formatDistanceToNow';
@@ -45,10 +43,15 @@ import {
   formatResourceFromWorkspace,
   formatWorkspaceIdleState,
   extractWorkspaceStateColor,
+  normalizeWorkspaceState,
   WORKSPACE_STATE_COLORS,
 } from '~/shared/utilities/WorkspaceUtils';
 import CustomEmptyState from '~/shared/components/CustomEmptyState';
-import { WorkspacesWorkspaceListItem, V1Beta1WorkspaceState } from '~/generated/data-contracts';
+import {
+  WorkspacesActivity,
+  WorkspacesWorkspaceListItem,
+  V1Beta1WorkspaceState,
+} from '~/generated/data-contracts';
 import { RedirectIconWithPopover } from '~/app/components/RedirectIconWithPopover';
 import { POLL_INTERVAL } from '~/shared/utilities/const';
 import { RefreshCounter } from '~/app/components/RefreshCounter';
@@ -114,6 +117,32 @@ type WorkspaceFilterKey = keyof typeof filterConfig;
 // Defines which filters should appear in the dropdown
 const visibleFilterKeys: readonly WorkspaceFilterKey[] = ['name', 'kind', 'image', 'state'];
 
+const LastActivityCell: React.FC<{ activity: WorkspacesActivity }> = ({ activity }) => {
+  if (activity.lastActivity === 0) {
+    return <span className="pf-v6-c-timestamp pf-m-help-text">unknown</span>;
+  }
+
+  const timestamp = (
+    <Timestamp date={new Date(activity.lastActivity)}>
+      {formatDistanceToNow(new Date(activity.lastActivity), { addSuffix: true })}
+    </Timestamp>
+  );
+
+  const pauseRule = activity.rules?.pauseWorkspace;
+  if (!pauseRule) {
+    return timestamp;
+  }
+
+  return (
+    <Tooltip
+      data-testid="workspace-lastActivity-tooltip"
+      content={`Workspace will be paused in ${formatDistanceToNow(new Date(pauseRule.eligibleAfter))}`}
+    >
+      <span>{timestamp}</span>
+    </Tooltip>
+  );
+};
+
 export interface WorkspaceTableRef {
   clearAllFilters: () => void;
   setFilter: (key: WorkspaceFilterKey, value: FilterValue) => void;
@@ -131,6 +160,15 @@ const WorkspaceTable = React.forwardRef<WorkspaceTableRef, WorkspaceTableProps>(
     },
     ref,
   ) => {
+    const normalizedWorkspaces = useMemo(
+      () =>
+        workspaces.map((ws) => ({
+          ...ws,
+          state: normalizeWorkspaceState(ws.state),
+        })),
+      [workspaces],
+    );
+
     const [workspaceKinds] = useWorkspaceKinds(namespace);
     const [activeRedirectPopover, setActiveRedirectPopover] = useState<string | null>(null);
     const [pinnedRedirectPopover, setPinnedRedirectPopover] = useState<string | null>(null);
@@ -179,8 +217,8 @@ const WorkspaceTable = React.forwardRef<WorkspaceTableRef, WorkspaceTableProps>(
       [],
     );
     const filteredWorkspaces = useMemo(
-      () => applyFilters(workspaces, filterValues, filterableProperties),
-      [workspaces, filterValues, filterableProperties],
+      () => applyFilters(normalizedWorkspaces, filterValues, filterableProperties),
+      [normalizedWorkspaces, filterValues, filterableProperties],
     );
 
     const visibleColumnKeys: WorkspaceTableColumnKeys[] = useMemo(
@@ -413,12 +451,47 @@ const WorkspaceTable = React.forwardRef<WorkspaceTableRef, WorkspaceTableProps>(
                               }
                               dataLabel={wsTableColumns[columnKey].label}
                             >
-                              {columnKey === 'name' && workspace.name}
+                              {columnKey === 'name' &&
+                                (() => {
+                                  const viewDetailsAction = rowActions(workspace).find(
+                                    (action): action is IAction =>
+                                      !('isSeparator' in action && action.isSeparator) &&
+                                      action.id === 'viewDetails',
+                                  );
+
+                                  return viewDetailsAction ? (
+                                    <Button
+                                      variant="link"
+                                      isInline
+                                      // Looks like plain text until hovered/focused, then reveals link styling.
+                                      // See the `workspace-name-btn` rule in app.css.
+                                      className="pf-v6-u-text-color-regular workspace-name-btn"
+                                      data-testid="workspace-name-link"
+                                      onClick={(event) =>
+                                        viewDetailsAction.onClick?.(event, rowIndex, {}, {})
+                                      }
+                                    >
+                                      {workspace.name}
+                                    </Button>
+                                  ) : (
+                                    workspace.name
+                                  );
+                                })()}
                               {columnKey === 'image' && (
                                 <Content>
-                                  <span data-testid="workspace-image-name">
-                                    {workspace.podTemplate.options.imageConfig.current.displayName}
-                                  </span>{' '}
+                                  <Tooltip
+                                    data-testid="workspace-image-description-tooltip"
+                                    content={
+                                      workspace.podTemplate.options.imageConfig.current.description
+                                    }
+                                  >
+                                    <span data-testid="workspace-image-name">
+                                      {
+                                        workspace.podTemplate.options.imageConfig.current
+                                          .displayName
+                                      }
+                                    </span>
+                                  </Tooltip>{' '}
                                   <RedirectIconWithPopover
                                     redirectChain={
                                       workspace.podTemplate.options.imageConfig.redirectChain
@@ -433,9 +506,16 @@ const WorkspaceTable = React.forwardRef<WorkspaceTableRef, WorkspaceTableProps>(
                               )}
                               {columnKey === 'podConfig' && (
                                 <Content>
-                                  <span data-testid="workspace-pod-config-name">
-                                    {workspace.podTemplate.options.podConfig.current.displayName}
-                                  </span>{' '}
+                                  <Tooltip
+                                    data-testid="workspace-pod-config-description-tooltip"
+                                    content={
+                                      workspace.podTemplate.options.podConfig.current.description
+                                    }
+                                  >
+                                    <span data-testid="workspace-pod-config-name">
+                                      {workspace.podTemplate.options.podConfig.current.displayName}
+                                    </span>
+                                  </Tooltip>{' '}
                                   <RedirectIconWithPopover
                                     redirectChain={
                                       workspace.podTemplate.options.podConfig.redirectChain
@@ -465,7 +545,11 @@ const WorkspaceTable = React.forwardRef<WorkspaceTableRef, WorkspaceTableProps>(
                                       <img
                                         src={validSrc}
                                         alt={workspace.workspaceKind.name}
-                                        style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                                        style={{
+                                          width: '20px',
+                                          height: '20px',
+                                          cursor: 'pointer',
+                                        }}
                                       />
                                     </Tooltip>
                                   )}
@@ -474,29 +558,18 @@ const WorkspaceTable = React.forwardRef<WorkspaceTableRef, WorkspaceTableProps>(
                               {columnKey === 'namespace' && workspace.namespace}
                               {columnKey === 'state' && (
                                 <div className="pf-v6-u-display-inline-block">
-                                  <Label color={extractWorkspaceStateColor(workspace.state)}>
-                                    {workspace.state}
-                                  </Label>
+                                  <Tooltip content={workspace.stateMessage || workspace.state}>
+                                    <Label color={extractWorkspaceStateColor(workspace.state)}>
+                                      {workspace.state}
+                                    </Label>
+                                  </Tooltip>
                                 </div>
                               )}
                               {columnKey === 'gpu' && formatResourceFromWorkspace(workspace, 'gpu')}
                               {columnKey === 'idleGpu' && formatWorkspaceIdleState(workspace)}
-                              {columnKey === 'lastActivity' &&
-                                (workspace.activity.lastActivity === 0 ? (
-                                  <span className="pf-v6-c-timestamp pf-m-help-text">unknown</span>
-                                ) : (
-                                  <Timestamp
-                                    date={new Date(workspace.activity.lastActivity)}
-                                    tooltip={{ variant: TimestampTooltipVariant.default }}
-                                  >
-                                    {formatDistanceToNow(
-                                      new Date(workspace.activity.lastActivity),
-                                      {
-                                        addSuffix: true,
-                                      },
-                                    )}
-                                  </Timestamp>
-                                ))}
+                              {columnKey === 'lastActivity' && (
+                                <LastActivityCell activity={workspace.activity} />
+                              )}
                             </Td>
                           );
                         })}
