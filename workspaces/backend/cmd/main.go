@@ -55,6 +55,7 @@ import (
 func main() {
 	// Define command line flags
 	cfg := &config.EnvConfig{}
+	var certFile, keyFile string
 	flag.IntVar(&cfg.Port,
 		"port",
 		getEnvAsInt("PORT", 4000),
@@ -128,6 +129,8 @@ func main() {
 		getEnvAsStr("STATIC_ASSETS_DIR", "/static"),
 		"Directory containing frontend static assets",
 	)
+	flag.StringVar(&certFile, "cert-file", getEnvAsStr("CERT_FILE", ""), "Path to TLS certificate file")
+	flag.StringVar(&keyFile, "key-file", getEnvAsStr("KEY_FILE", ""), "Path to TLS key file")
 
 	flag.Parse()
 
@@ -207,7 +210,7 @@ func main() {
 		logger.Error("failed to create app", "error", err)
 		os.Exit(1)
 	}
-	svr, err := server.NewServer(app, logger)
+	svr, err := server.NewServer(app, logger, certFile, keyFile)
 	if err != nil {
 		logger.Error("failed to create server", "error", err)
 		os.Exit(1)
