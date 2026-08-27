@@ -421,55 +421,57 @@ func (r *WorkspaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// NOTE: We defer the StatefulSet reconcile until after we potentially add the sidecar (for KubeGateway)
 	//       This is done below after the Service is created, as the sidecar generation needs the Service.
-	// fetch StatefulSets
-	// NOTE: we filter by StatefulSets that are owned by the Workspace, not by name
-	//	     this allows us to generate a random name for the StatefulSet with `metadata.generateName`
 	var statefulSetName string
-	ownedStatefulSets := &appsv1.StatefulSetList{}
-	listOpts = &client.ListOptions{
-		FieldSelector: fields.OneTermEqualSelector(helper.IndexWorkspaceOwnerField, workspace.Name),
-		Namespace:     req.Namespace,
-	}
-	if err := r.List(ctx, ownedStatefulSets, listOpts); err != nil {
-		log.Error(err, "unable to list StatefulSets")
-		return ctrl.Result{}, err
-	}
-
-	// reconcile StatefulSet
-	switch numSts := len(ownedStatefulSets.Items); {
-	case numSts > 1:
-		statefulSetList := make([]string, len(ownedStatefulSets.Items))
-		for i, sts := range ownedStatefulSets.Items {
-			statefulSetList[i] = sts.Name
+	if !r.Config.UseKubeGateway {
+		// fetch StatefulSets
+		// NOTE: we filter by StatefulSets that are owned by the Workspace, not by name
+		//	     this allows us to generate a random name for the StatefulSet with `metadata.generateName`
+		ownedStatefulSets := &appsv1.StatefulSetList{}
+		listOpts = &client.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector(helper.IndexWorkspaceOwnerField, workspace.Name),
+			Namespace:     req.Namespace,
 		}
-		statefulSetListString := strings.Join(statefulSetList, ", ")
-		log.Error(nil, "Workspace owns multiple StatefulSets", "statefulSets", statefulSetListString)
-		return r.updateWorkspaceState(ctx, log, workspace,
-			kubefloworgv1beta1.WorkspaceStateError,
-			fmt.Sprintf(stateMsgErrorMultipleStatefulSets, statefulSetListString),
-		)
-	case numSts == 0:
-		if err := r.Create(ctx, statefulSet); err != nil {
-			log.Error(err, "unable to create StatefulSet")
+		if err := r.List(ctx, ownedStatefulSets, listOpts); err != nil {
+			log.Error(err, "unable to list StatefulSets")
 			return ctrl.Result{}, err
 		}
-		statefulSetName = statefulSet.Name
-		log.V(2).Info("StatefulSet created", "statefulSet", statefulSetName)
-	default:
-		foundStatefulSet := &ownedStatefulSets.Items[0]
-		statefulSetName = foundStatefulSet.Name
-		if helper.CopyStatefulSetFields(statefulSet, foundStatefulSet) {
-			if err := r.Update(ctx, foundStatefulSet); err != nil {
-				if apierrors.IsConflict(err) {
-					log.V(2).Info("update conflict while updating StatefulSet, will requeue")
-					return ctrl.Result{Requeue: true}, nil
-				}
-				log.Error(err, "unable to update StatefulSet")
+
+		// reconcile StatefulSet
+		switch numSts := len(ownedStatefulSets.Items); {
+		case numSts > 1:
+			statefulSetList := make([]string, len(ownedStatefulSets.Items))
+			for i, sts := range ownedStatefulSets.Items {
+				statefulSetList[i] = sts.Name
+			}
+			statefulSetListString := strings.Join(statefulSetList, ", ")
+			log.Error(nil, "Workspace owns multiple StatefulSets", "statefulSets", statefulSetListString)
+			return r.updateWorkspaceState(ctx, log, workspace,
+				kubefloworgv1beta1.WorkspaceStateError,
+				fmt.Sprintf(stateMsgErrorMultipleStatefulSets, statefulSetListString),
+			)
+		case numSts == 0:
+			if err := r.Create(ctx, statefulSet); err != nil {
+				log.Error(err, "unable to create StatefulSet")
 				return ctrl.Result{}, err
 			}
-			log.V(2).Info("StatefulSet updated", "statefulSet", statefulSetName)
+			statefulSetName = statefulSet.Name
+			log.V(2).Info("StatefulSet created", "statefulSet", statefulSetName)
+		default:
+			foundStatefulSet := &ownedStatefulSets.Items[0]
+			statefulSetName = foundStatefulSet.Name
+			if helper.CopyStatefulSetFields(statefulSet, foundStatefulSet) {
+				if err := r.Update(ctx, foundStatefulSet); err != nil {
+					if apierrors.IsConflict(err) {
+						log.V(2).Info("update conflict while updating StatefulSet, will requeue")
+						return ctrl.Result{Requeue: true}, nil
+					}
+					log.Error(err, "unable to update StatefulSet")
+					return ctrl.Result{}, err
+				}
+				log.V(2).Info("StatefulSet updated", "statefulSet", statefulSetName)
+			}
+			statefulSet = foundStatefulSet
 		}
-		statefulSet = foundStatefulSet
 	}
 
 	// generate Service
@@ -531,7 +533,7 @@ func (r *WorkspaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		serviceName = service.Name
 		log.V(2).Info("Service created", "service", serviceName)
 	default:
-		foundService := &ownedServices.Items[0]
+		foundService := &workspaceServices[0]
 		serviceName = foundService.Name
 		if helper.CopyServiceFields(service, foundService) {
 			if err := r.Update(ctx, foundService); err != nil {
