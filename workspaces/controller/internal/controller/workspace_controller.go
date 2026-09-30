@@ -947,19 +947,8 @@ func mergeReconcileResult(a, b ctrl.Result) ctrl.Result {
 	case a.RequeueAfter <= b.RequeueAfter:
 		return a
 	default:
-		return a
+		return b
 	}
-}
-
-// requeueDelay returns how soon a result wants to requeue. Zero means "do not requeue".
-func requeueDelay(r ctrl.Result) time.Duration {
-	if r.RequeueAfter > 0 {
-		return r.RequeueAfter
-	}
-	if r.Requeue { //nolint:staticcheck // Result.Requeue is deprecated in controller-runtime v0.22
-		return time.Nanosecond
-	}
-	return 0
 }
 
 // SetupWithManager sets up the controller with the Manager.
