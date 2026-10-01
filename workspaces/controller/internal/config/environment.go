@@ -21,8 +21,8 @@ type EnvConfig struct {
 	IstioHosts           string
 	ClusterDomain        string
 	UseIstio             bool
-	ClientQPS     		 float64
-	ClientBurst   		 int
+	ClientQPS            float64
+	ClientBurst          int
 	UseKubeGateway       bool
 	KubeGatewayName      string
 	KubeGatewayNamespace string
