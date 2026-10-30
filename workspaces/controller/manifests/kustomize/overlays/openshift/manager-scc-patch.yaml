@@ -1,0 +1,6 @@
+# OpenShift restricted-v2 SCC rejects UIDs outside the namespace's allocated
+# range (1000xxxxxx). Remove the pinned runAsUser so the SCC assigns one from
+# the namespace range; the image is UBI-based and supports arbitrary UIDs.
+# runAsNonRoot: true is kept, SCC-assigned UIDs are non-root.
+- op: remove
+  path: /spec/template/spec/containers/0/securityContext/runAsUser

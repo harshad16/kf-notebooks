@@ -12,7 +12,7 @@ resources:
 components:
 - ../../components/gateway
 - ../../components/openshift-rbac
-- ../../components/openshift-webhook
+# openshift-webhook is inherited from overlays/openshift
 - ../../components/common
 
 configMapGenerator:
@@ -79,11 +79,3 @@ replacements:
       kind: Deployment
       name: workspaces-controller
 
-patches:
-- patch: |-
-    # OpenShift SCC: allow the platform to assign UID (restricted-v2 / nonroot-v2).
-    - op: remove
-      path: /spec/template/spec/containers/0/securityContext/runAsUser
-  target:
-    kind: Deployment
-    name: workspaces-controller

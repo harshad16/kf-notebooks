@@ -188,6 +188,36 @@ undeploy-gateway: kustomize ## Undeploy controller (gateway overlay) from the K8
 	@$(gateway_namespace_sed)
 	@$(KUSTOMIZE) build manifests/kustomize/.output/overlays/gateway | $(KUBECTL) delete --ignore-not-found="$(ignore-not-found)" -f -
 
+.PHONY: deploy-openshift
+deploy-openshift: manifests kustomize ## Deploy controller with openshift overlay to the OpenShift cluster specified in ~/.kube/config.
+ifndef IMG
+	$(error IMG must be set)
+endif
+ifneq ($(findstring |,$(IMG)),)
+	$(error IMG must not contain '|')
+endif
+ifneq ($(findstring ",$(IMG)),)
+	$(error IMG must not contain double quotes)
+endif
+	@echo "Copying kustomize directory structure to .output..."
+	@rm -rf manifests/kustomize/.output
+	@mkdir -p manifests/kustomize/.output
+	@cp -r manifests/kustomize/* manifests/kustomize/.output/
+	# Match both short name and registry-prefixed name (base kustomization may transform either)
+	@cd manifests/kustomize/.output/overlays/openshift && $(KUSTOMIZE) edit set image $(NAME)=${IMG} $(REGISTRY)/$(NAME)=${IMG}
+	@$(KUBECTL) apply -k manifests/kustomize/.output/overlays/openshift
+	@# Webhook caBundle: the service-ca operator fills in caBundle on the
+	@# ValidatingWebhookConfiguration via its inject-cabundle annotation; no
+	@# manual post-apply step is required. Fallback if it is ever needed:
+	@#   CA=$$(oc get secret workspaces-controller-webhook-cert -o jsonpath='{.data.ca\.crt}')
+	@#   oc patch validatingwebhookconfiguration \
+	@#     workspaces-validating-webhook-configuration --type=json \
+	@#     -p "[{\"op\":\"add\",\"path\":\"/webhooks/0/clientConfig/caBundle\",\"value\":\"$${CA}\"}]"
+
+.PHONY: undeploy-openshift
+undeploy-openshift: kustomize ## Undeploy controller (openshift overlay) from the OpenShift cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+	@$(KUBECTL) delete -k manifests/kustomize/overlays/openshift --ignore-not-found=$(ignore-not-found)
+
 ##@ Dependencies
 
 ## Tool Binaries

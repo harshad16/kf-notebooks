@@ -10,8 +10,16 @@ resources:
 components:
 - ../../components/prometheus
 - ../../components/common
+# OpenShift service-ca operator wiring for the webhook serving certs
+# (kind/cert-manager is not available on OpenShift).
+- ../../components/openshift-webhook
 
 patches:
+# Drop the pinned runAsUser so restricted-v2 SCC assigns a namespace-range UID.
+- target:
+    kind: Deployment
+    name: workspaces-controller
+  path: manager-scc-patch.yaml
 # Rename and restrict the shared prometheus metrics NP for OpenShift.
 - target:
     kind: NetworkPolicy
